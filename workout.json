@@ -1,0 +1,31 @@
+{
+    "users": {
+        "774848780234653726": {
+            "options": {
+                "time": {
+                    "timezone": "Pacific/Auckland",
+                    "start_time": 9,
+                    "end_time": 21
+                },
+                "statuses": ["online"]
+            },
+            "exercises": {
+                "pushups": {
+                    "weight": 10,
+                    "minimum": 15,
+                    "maximum": 30
+                },
+                "crunches": {
+                    "weight": 4,
+                    "minimum": 20,
+                    "maximum": 40
+                },
+                "pullups": {
+                    "weight": 6,
+                    "minimum": 4,
+                    "maximum": 10
+                }
+            }
+        }
+    }
+}
