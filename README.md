@@ -1,6 +1,21 @@
 # Workout Bot
-#### Workout Bot forces its users to get off their ass and get some exercise. Every 30 minutes there is a 66% chance that you will be DMed with a random amount of reps for a random exercise (configurable on per user basis). If you are fatass like me that needs reminders to take a break, Workout Bot is for you.
+#### Workout Bot is designed to encourage physical activity by sending users exercise reminders every 30 minutes. There is a 66% chance of receiving a DM with a random number of reps for a random exercise, which can be personalized for each user. For those who require motivation to take regular breaks, Workout Bot is an ideal solution.
 
-## Commands
- - DM 'new' for a new randomly generated exercise
- - That's it for now, calm down I started on this yesterday
+# 
+#### 🔗 [**Discord**](https://discord.gg/aX2UXKPsPX)
+
+##### To use Workout Bot, joining our [Discord](https://discord.gg/aX2UXKPsPX) is mandatory to track your status and send you messages. Once inside, use the command `/register` in any channel or DMs and adjust your settings. Tuning your settings is crucial for the proper functioning of Workout Bot.
+
+
+## Slash Commands
+| Slash Command | Function |
+| ------- | -------- |
+| `/configure` |Configure all settings / exercises (main command). |
+| `/register` | Registers your discord account into our program. |
+| `/unregister` | Removes your discord account from our program. |
+
+
+## DM Commands
+| DM Command | Function |
+| ------- | -------- |
+| `new` | Generates a random new exercise using your configuration. |

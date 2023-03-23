@@ -1,2 +1,3 @@
-workout.json
-__pycache__/
+project/__pycache__/
+project/database/
+project/misc/
