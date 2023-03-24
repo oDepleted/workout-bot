@@ -52,16 +52,13 @@ class AddExercise(discord.ui.Modal, title='Add Exercise'):
         await interaction.response.send_message('You already have that exercise added! Please remove it before adding it again.', ephemeral=True)
 
 class ViewJSON(discord.ui.View):
-    def __init__(self) -> None:
+    def __init__(self, data) -> None:
         super().__init__(timeout=None)
+        self.data = data
     
     @discord.ui.button(label = "View JSON", style = discord.ButtonStyle.gray, custom_id="view_json", row=1)
     async def view_json(self, interaction: discord.Interaction, button: discord.ui.Button):
-        user = interaction.user.id
-        with open(f'./database/userdata/{user}.json', 'r') as datafile:
-            options = {}
-            options['options'] = json.load(datafile)['options']
-        await interaction.response.send_message(content=f"```json\n{json.dumps(options, indent=4)}```", ephemeral=True)
+        await interaction.response.send_message(content=f"```json\n{json.dumps(self.data, indent=4)}```", ephemeral=True)
 
 class RenameExercise(discord.ui.Modal, title='Rename Exercise'):
     def __init__(self, old_name, callback, **kwargs):
@@ -230,7 +227,10 @@ class Configure(discord.ui.View):
         embed.add_field(name='Time Settings', value=f'Timezone: {timezone}\nStart Time: {datetime.time(hour=start_time)}\nFinish Time: {datetime.time(hour=finish_time)}', inline=False)
         embed.add_field(name="Statuses:", value=f'Online: {online}\nIdle: {idle}\nDo Not Disturb: {dnd}\nOffline: {offline}', inline=False)
         embed.add_field(name='Other:', value=f'Rest Day: {rest_day}', inline=False)
-        await interaction.response.send_message(embed=embed, view=ViewJSON(), ephemeral=True)
+        
+        options = {}
+        options['options'] = json.load(datafile)['options']
+        await interaction.response.send_message(embed=embed, view=ViewJSON(data=options), ephemeral=True)
 
 class ConfigureExercises(discord.ui.View):
     def __init__(self, original_exercise) -> None:

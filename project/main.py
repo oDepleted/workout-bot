@@ -9,7 +9,7 @@ import discord
 from discord import app_commands
 from discord.ext import tasks
 
-from ui import Configure, CompletionButtons, ConfirmButton
+from ui import Configure, CompletionButtons, ConfirmButton, ViewJSON
 
 class MyClient(discord.Client):
     def __init__(self):
@@ -63,22 +63,23 @@ async def workout_reminder():
         start_time = datetime.time(hour=data['options']['time']['start_time'])
         end_time = datetime.time(hour=data['options']['time']['end_time'])
 
-        if current_time.hour == end_time.hour and current_time.minute < 30:
-            embed = discord.Embed(title="Daily Exercise Summary", description=None, color=0x9470DC)
-            for exercise in data['exercises']:
-                completions, fails, reps = data['exercises'][exercise]['stats']['daily'].values()
-                embed.add_field(name=exercise.title(), value=f'Completions: {completions}\nFails: {fails}\nReps: {reps}')
-            guild = client.get_guild(841828321359822858)
-            member = guild.get_member(user)
-            await member.send(embed=embed)
-            return
-        
         if current_time.hour == 0 and current_time.minute < 30:
+            print(f'reset daily : {user}')
             for exercise in data['exercises']:
                 data['exercises'][exercise]['stats']['daily'] = {'completions': 0, 'fails': 0, 'reps': 0}
             with open(f"./database/userdata/{file}", 'w') as datafile:
                 json.dump(data, datafile, indent=4)
-            return
+            continue
+
+        if current_time.hour == end_time.hour and current_time.minute < 30:
+            embed = discord.Embed(title="Daily Exercise Summary", description=None, color=0x9470DC)
+            for exercise in data['exercises']:
+                completions, fails, reps = data['exercises'][exercise]['stats']['daily'].values()
+                embed.add_field(name=exercise.title(), value=f'Reps: {reps}\nCompletions: {completions}\nFails: {fails}')
+            guild = client.get_guild(841828321359822858)
+            member = guild.get_member(user)
+            await member.send(embed=embed)
+            continue
 
         if start_time <= current_time <= end_time and data['options']['rest_day'] == False:
             if random.choice([True, True, False]):
@@ -100,6 +101,11 @@ async def on_message(message):
             if os.path.exists(f'./database/userdata/{user}.json'):
                 with open(f'./database/userdata/{user}.json', 'r') as datafile:
                     data = json.load(datafile)
+                for exercise in data['exercises']:
+                    if exercise in message.content[4:]:
+                        data = {'exercises': {exercise: data['exercises'][exercise]}}
+                        break
+
                 generated_workout, exercise, reps = get_workout(data)
                 if generated_workout:
                     view = CompletionButtons(exercise, reps)
@@ -147,6 +153,46 @@ async def configure(interaction: discord.Interaction):
         view = Configure()
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
     else: await interaction.response.send_message(embed=discord.Embed(title=f"You Aren't Registered!", description="In order to change your configuration you must be registered!\nUse `/register` to register!", color=0xFF0000), ephemeral=True)
+
+@client.tree.command(name = "daily", description = "View your daily exercise summary")
+async def daily(interaction: discord.Interaction):
+    user = interaction.user.id
+    if os.path.exists(f'./database/userdata/{user}.json'):
+        with open(f"./database/userdata/{user}.json", 'r') as datafile:
+            data = json.load(datafile)
+        embed = discord.Embed(title="Daily Exercise Summary", description=None, color=0x9470DC)
+        json_data = {}
+        for exercise in data['exercises']:
+            completions, fails, reps = data['exercises'][exercise]['stats']['daily'].values()
+            json_data[exercise] = {}
+            json_data[exercise]['daily'] = {'completions': completions, 'fails': fails, 'reps': reps}
+            embed.add_field(name=exercise.title(), value=f'Reps: {reps}\nCompletions: {completions}\nFails: {fails}')
+
+        if not embed.fields:
+            embed.description = "You have no exercises configured."
+
+        await interaction.response.send_message(embed=embed, view=ViewJSON(data=json_data), ephemeral=True)
+    else: await interaction.response.send_message(embed=discord.Embed(title="You Aren't Registered!", description='In order to view your daily summary, you need to have registered first!', color=0xFF0000), ephemeral=True)
+
+@client.tree.command(name = "stats", description = "View your all time exercise summary")
+async def stats(interaction: discord.Interaction):
+    user = interaction.user.id
+    if os.path.exists(f'./database/userdata/{user}.json'):
+        with open(f"./database/userdata/{user}.json", 'r') as datafile:
+            data = json.load(datafile)
+        embed = discord.Embed(title="All Time Exercise Summary", description=None, color=0x9470DC)
+        json_data = {}
+        for exercise in data['exercises']:
+            completions, fails, reps = data['exercises'][exercise]['stats']['total'].values()
+            json_data[exercise] = {}
+            json_data[exercise]['total'] = {'completions': completions, 'fails': fails, 'reps': reps}
+            embed.add_field(name=exercise.title(), value=f'Reps: {reps}\nCompletions: {completions}\nFails: {fails}')
+
+        if not embed.fields:
+            embed.description = "You have no exercises configured."
+
+        await interaction.response.send_message(embed=embed, view=ViewJSON(data=json_data), ephemeral=True)
+    else: await interaction.response.send_message(embed=discord.Embed(title="You Aren't Registered!", description='In order to view your all time summary, you need to have registered first!', color=0xFF0000), ephemeral=True)
 
 if __name__ == "__main__":
     client.run(os.environ.get('WORKOUT_BOT_TOKEN'))
