@@ -9,7 +9,7 @@ import discord
 from discord import app_commands
 from discord.ext import tasks
 
-from ui import Configure, CompletionButtons, ConfirmButton, ViewJSON
+from ui import Configure, CompletionButtons, ConfirmButton, ViewJSON, RestDayButtons
 
 class MyClient(discord.Client):
     def __init__(self):
@@ -54,42 +54,57 @@ async def on_ready():
 @tasks.loop(minutes=30)
 async def workout_reminder():
     for file in os.listdir('./database/userdata/'):
-        user = int(file.split('.')[0])
-        with open(f"./database/userdata/{file}", 'r') as datafile:
-            data = json.load(datafile)
+        try:
+            user = int(file.split('.')[0])
+            with open(f"./database/userdata/{file}", 'r') as datafile:
+                data = json.load(datafile)
 
-        timezone = pendulum.timezone(data['options']['time']['timezone'])
-        current_time = datetime.datetime.now(timezone).time()
-        start_time = datetime.time(hour=data['options']['time']['start_time'])
-        end_time = datetime.time(hour=data['options']['time']['end_time'])
+            timezone = pendulum.timezone(data['options']['time']['timezone'])
+            current_time = datetime.datetime.now(timezone).time()
+            start_time = datetime.time(hour=data['options']['time']['start_time'])
+            end_time = datetime.time(hour=data['options']['time']['end_time'])
 
-        if current_time.hour == 0 and current_time.minute < 30:
-            print(f'reset daily : {user}')
-            for exercise in data['exercises']:
-                data['exercises'][exercise]['stats']['daily'] = {'completions': 0, 'fails': 0, 'reps': 0}
-            with open(f"./database/userdata/{file}", 'w') as datafile:
-                json.dump(data, datafile, indent=4)
-            continue
+            will_continue = False
 
-        if current_time.hour == end_time.hour and current_time.minute < 30:
-            embed = discord.Embed(title="Daily Exercise Summary", description=None, color=0x9470DC)
-            for exercise in data['exercises']:
-                completions, fails, reps = data['exercises'][exercise]['stats']['daily'].values()
-                embed.add_field(name=exercise.title(), value=f'Reps: {reps}\nCompletions: {completions}\nFails: {fails}')
-            guild = client.get_guild(841828321359822858)
-            member = guild.get_member(user)
-            await member.send(embed=embed)
-            continue
+            if current_time.hour == 0 and current_time.minute < 30:
+                print(f'reset daily : {user}')
+                for exercise in data['exercises']:
+                    data['exercises'][exercise]['stats']['daily'] = {'completions': 0, 'fails': 0, 'reps': 0}
+                if data['options']['rest_day']['enabled'] == True:
+                    data['options']['rest_day']['enabled'] = False
 
-        if start_time <= current_time <= end_time and data['options']['rest_day'] == False:
-            if random.choice([True, True, False]):
+                with open(f"./database/userdata/{file}", 'w') as datafile:
+                    json.dump(data, datafile, indent=4)
+                will_continue = True
+
+            if current_time.hour == end_time.hour and current_time.minute < 30:
+                embed = discord.Embed(title="Daily Exercise Summary", description=None, color=0x9470DC)
+                for exercise in data['exercises']:
+                    completions, fails, reps = data['exercises'][exercise]['stats']['daily'].values()
+                    embed.add_field(name=exercise.title(), value=f'Reps: {reps}\nCompletions: {completions}\nFails: {fails}')
                 guild = client.get_guild(841828321359822858)
                 member = guild.get_member(user)
-                if str(member.status) in data['options']['statuses']:
-                    generated_workout, exercise, reps = get_workout(data)
-                    if generated_workout:
-                        view = CompletionButtons(exercise, reps)
-                        await member.send(generated_workout, view=view)
+                await member.send(embed=embed)
+                will_continue = True
+
+            if will_continue:
+                continue
+
+            if start_time <= current_time <= end_time and data['options']['rest_day']['enabled'] == False:
+                if random.choice([True, True, False]):
+                    guild = client.get_guild(841828321359822858)
+                    member = guild.get_member(user)
+                    if not member:
+                        print('Member not in discord server. Continuing...')
+                        continue
+                    if str(member.status) in data['options']['statuses']:
+                        generated_workout, exercise, reps = get_workout(data)
+                        if generated_workout:
+                            view = CompletionButtons(exercise, reps)
+                            await member.send(generated_workout, view=view)
+        except Exception as error:
+            print(error)
+            continue
 
 @client.event
 async def on_message(message):
@@ -125,7 +140,10 @@ async def register(interaction: discord.Interaction):
                     "end_time": 0
                 },
                 "statuses": ['online'],
-                "rest_day": False
+                "rest_day": {
+                    "enabled": False,
+                    "history": []
+                }
             },
             "exercises": {}
         }
@@ -193,6 +211,19 @@ async def stats(interaction: discord.Interaction):
 
         await interaction.response.send_message(embed=embed, view=ViewJSON(data=json_data), ephemeral=True)
     else: await interaction.response.send_message(embed=discord.Embed(title="You Aren't Registered!", description='In order to view your all time summary, you need to have registered first!', color=0xFF0000), ephemeral=True)
+
+@client.tree.command(name = "restday", description = "Manage your rest days")
+async def rest_day(interaction: discord.Interaction):
+    user = interaction.user.id
+    if os.path.exists(f'./database/userdata/{user}.json'):
+        with open(f"./database/userdata/{user}.json", 'r') as datafile:
+            data = json.load(datafile)
+        
+        current_status = {True: 'enabled', False: 'disabled'}.get(data['options']['rest_day']['enabled'])
+        embed = discord.Embed(title="Manage Or View Rest Days", description=f"Current status: `{current_status}`\nYou can set or unset today as a rest day or view your rest day history.", color=0x9470DC)
+        await interaction.response.send_message(embed=embed, view=RestDayButtons(), ephemeral=True)
+    else: await interaction.response.send_message(embed=discord.Embed(title="You Aren't Registered!", description='In order to manage your rest days, you need to have registered first!', color=0xFF0000), ephemeral=True)
+
 
 if __name__ == "__main__":
     client.run(os.environ.get('WORKOUT_BOT_TOKEN'))

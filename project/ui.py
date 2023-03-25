@@ -221,15 +221,15 @@ class Configure(discord.ui.View):
         timezone, start_time, finish_time = data['options']['time'].values()
         statuses = data['options']['statuses']
         online, idle, dnd, offline = str("online" in statuses).lower(), str("idle" in statuses).lower(), str("dnd" in statuses).lower(), str("offline" in statuses).lower()
-        rest_day = str(data['options']['rest_day']).lower()
+        rest_day = str(data['options']['rest_day']['enabled']).lower()
 
         embed = discord.Embed(title='Your Configuration', color=0x9470DC)
         embed.add_field(name='Time Settings', value=f'Timezone: {timezone}\nStart Time: {datetime.time(hour=start_time)}\nFinish Time: {datetime.time(hour=finish_time)}', inline=False)
         embed.add_field(name="Statuses:", value=f'Online: {online}\nIdle: {idle}\nDo Not Disturb: {dnd}\nOffline: {offline}', inline=False)
         embed.add_field(name='Other:', value=f'Rest Day: {rest_day}', inline=False)
-        
+
         options = {}
-        options['options'] = json.load(datafile)['options']
+        options['options'] = data['options']
         await interaction.response.send_message(embed=embed, view=ViewJSON(data=options), ephemeral=True)
 
 class ConfigureExercises(discord.ui.View):
@@ -443,3 +443,65 @@ class ConfirmButton(discord.ui.View):
                 json.dump(data, datafile, indent=4)
             formatted_removed_list = ', '.join(removed_list) if removed_list else "None"
             await interaction.followup.send(f'Successfully deleted the following exercises: `{formatted_removed_list}`.', ephemeral=True)
+
+class RestDayButtons(discord.ui.View):
+    def __init__(self) -> None:
+        super().__init__(timeout=None)
+
+    @discord.ui.button(label = "Enable", style = discord.ButtonStyle.success, custom_id = "enable_rest_day", row=1)
+    async def enable_rest_day(self, interaction: discord.Interaction, button: discord.ui.Button):
+        user = interaction.user.id
+        with open(f'./database/userdata/{user}.json', 'r') as datafile:
+            data = json.load(datafile)
+
+        if data['options']['rest_day']['enabled'] == True:
+            await interaction.response.send_message('Today is already set as a rest day! Use the `Disable` button to disable it!', ephemeral=True)
+            return
+
+        data['options']['rest_day']['enabled'] = True
+
+        today = datetime.datetime.today().strftime("%Y-%m-%d")
+        if not today in data['options']['rest_day']['history']:
+            data['options']['rest_day']['history'].append(today)
+
+        with open(f'./database/userdata/{user}.json', 'w') as datafile:
+            json.dump(data, datafile, indent=4)
+
+        await interaction.response.send_message('Successfully added today as a rest day.', ephemeral=True)
+
+    @discord.ui.button(label = "Disable", style = discord.ButtonStyle.danger, custom_id = "disable_rest_day", row=1)
+    async def disable_rest_day(self, interaction: discord.Interaction, button: discord.ui.Button):
+        user = interaction.user.id
+        with open(f'./database/userdata/{user}.json', 'r') as datafile:
+            data = json.load(datafile)
+
+        if data['options']['rest_day']['enabled'] == False:
+            await interaction.response.send_message('Today is not marked as a rest day! Use the `Enable` button to set it!', ephemeral=True)
+            return
+
+        data['options']['rest_day']['enabled'] = False
+        
+        today = datetime.datetime.today().strftime("%Y-%m-%d")
+        if today in data['options']['rest_day']['history']:
+            data['options']['rest_day']['history'].remove(today)
+
+        with open(f'./database/userdata/{user}.json', 'w') as datafile:
+            json.dump(data, datafile, indent=4)
+
+        await interaction.response.send_message('Successfully removed today as a rest day.', ephemeral=True)
+
+    @discord.ui.button(label = "History", style = discord.ButtonStyle.gray, custom_id = "rest_day_history", row=1)
+    async def rest_day_history(self, interaction: discord.Interaction, button: discord.ui.Button):
+        user = interaction.user.id
+        with open(f'./database/userdata/{user}.json', 'r') as datafile:
+            data = json.load(datafile)
+        total_rest_days = len(data['options']['rest_day']['history'])
+        description = [f'Total rest days: {total_rest_days}\n']
+        if data['options']['rest_day']['history']:
+            description.extend([f'{i+1}. {date}' for i, date in enumerate(reversed(data['options']['rest_day']['history']))])
+        else:
+            description.append('No history data.')
+        description_string = '\n'.join(description)
+
+        embed = discord.Embed(title='Rest Day History', description=description_string, color=0x9470DC)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
