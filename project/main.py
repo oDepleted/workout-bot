@@ -59,6 +59,9 @@ async def workout_reminder():
             with open(f"./database/userdata/{file}", 'r') as datafile:
                 data = json.load(datafile)
 
+            if not data['exercises']:
+                continue
+
             timezone = pendulum.timezone(data['options']['time']['timezone'])
             current_time = datetime.datetime.now(timezone).time()
             start_time = datetime.time(hour=data['options']['time']['start_time'])
@@ -76,6 +79,9 @@ async def workout_reminder():
                 with open(f"./database/userdata/{file}", 'w') as datafile:
                     json.dump(data, datafile, indent=4)
                 will_continue = True
+            
+            if data['rest_day']['enabled']:
+                continue
 
             if current_time.hour == end_time.hour and current_time.minute < 30:
                 embed = discord.Embed(title="Daily Exercise Summary", description=None, color=0x9470DC)
@@ -90,7 +96,7 @@ async def workout_reminder():
             if will_continue:
                 continue
 
-            if start_time <= current_time <= end_time and data['options']['rest_day']['enabled'] == False:
+            if start_time <= current_time <= end_time:
                 if random.choice([True, True, False]):
                     guild = client.get_guild(841828321359822858)
                     member = guild.get_member(user)
