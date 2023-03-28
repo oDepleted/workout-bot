@@ -54,63 +54,59 @@ async def on_ready():
 @tasks.loop(minutes=30)
 async def workout_reminder():
     for file in os.listdir('./database/userdata/'):
-        try:
-            user = int(file.split('.')[0])
-            with open(f"./database/userdata/{file}", 'r') as datafile:
-                data = json.load(datafile)
+        user = int(file.split('.')[0])
+        with open(f"./database/userdata/{file}", 'r') as datafile:
+            data = json.load(datafile)
 
-            if not data['exercises']:
-                continue
+        if not data['exercises']:
+            continue
 
-            timezone = pendulum.timezone(data['options']['time']['timezone'])
-            current_time = datetime.datetime.now(timezone).time()
-            start_time = datetime.time(hour=data['options']['time']['start_time'])
-            end_time = datetime.time(hour=data['options']['time']['end_time'])
+        timezone = pendulum.timezone(data['options']['time']['timezone'])
+        current_time = datetime.datetime.now(timezone).time()
+        start_time = datetime.time(hour=data['options']['time']['start_time'])
+        end_time = datetime.time(hour=data['options']['time']['end_time'])
 
-            will_continue = False
+        will_continue = False
 
-            if current_time.hour == 0 and current_time.minute < 30:
-                print(f'reset daily : {user}')
-                for exercise in data['exercises']:
-                    data['exercises'][exercise]['stats']['daily'] = {'completions': 0, 'fails': 0, 'reps': 0}
-                if data['options']['rest_day']['enabled'] == True:
-                    data['options']['rest_day']['enabled'] = False
+        if current_time.hour == 0 and current_time.minute < 30:
+            print(f'reset daily : {user}')
+            for exercise in data['exercises']:
+                data['exercises'][exercise]['stats']['daily'] = {'completions': 0, 'fails': 0, 'reps': 0}
+            if data['options']['rest_day']['enabled'] == True:
+                data['options']['rest_day']['enabled'] = False
 
-                with open(f"./database/userdata/{file}", 'w') as datafile:
-                    json.dump(data, datafile, indent=4)
-                will_continue = True
-            
-            if data['rest_day']['enabled']:
-                continue
+            with open(f"./database/userdata/{file}", 'w') as datafile:
+                json.dump(data, datafile, indent=4)
+            will_continue = True
 
-            if current_time.hour == end_time.hour and current_time.minute < 30:
-                embed = discord.Embed(title="Daily Exercise Summary", description=None, color=0x9470DC)
-                for exercise in data['exercises']:
-                    completions, fails, reps = data['exercises'][exercise]['stats']['daily'].values()
-                    embed.add_field(name=exercise.title(), value=f'Reps: {reps}\nCompletions: {completions}\nFails: {fails}')
+        if data['options']['rest_day']['enabled']:
+            continue
+
+        if current_time.hour == end_time.hour and current_time.minute < 30:
+            embed = discord.Embed(title="Daily Exercise Summary", description=None, color=0x9470DC)
+            for exercise in data['exercises']:
+                completions, fails, reps = data['exercises'][exercise]['stats']['daily'].values()
+                embed.add_field(name=exercise.title(), value=f'Reps: {reps}\nCompletions: {completions}\nFails: {fails}')
+            guild = client.get_guild(841828321359822858)
+            member = guild.get_member(user)
+            await member.send(embed=embed)
+            will_continue = True
+
+        if will_continue:
+            continue
+
+        if start_time <= current_time <= end_time:
+            if random.choice([True, True, False]):
                 guild = client.get_guild(841828321359822858)
                 member = guild.get_member(user)
-                await member.send(embed=embed)
-                will_continue = True
-
-            if will_continue:
-                continue
-
-            if start_time <= current_time <= end_time:
-                if random.choice([True, True, False]):
-                    guild = client.get_guild(841828321359822858)
-                    member = guild.get_member(user)
-                    if not member:
-                        print('Member not in discord server. Continuing...')
-                        continue
-                    if str(member.status) in data['options']['statuses']:
-                        generated_workout, exercise, reps = get_workout(data)
-                        if generated_workout:
-                            view = CompletionButtons(exercise, reps)
-                            await member.send(generated_workout, view=view)
-        except Exception as error:
-            print(error)
-            continue
+                if not member:
+                    print('Member not in discord server. Continuing...')
+                    continue
+                if str(member.status) in data['options']['statuses']:
+                    generated_workout, exercise, reps = get_workout(data)
+                    if generated_workout:
+                        view = CompletionButtons(exercise, reps)
+                        await member.send(generated_workout, view=view)
 
 @client.event
 async def on_message(message):
