@@ -89,6 +89,9 @@ async def workout_reminder():
                 embed.add_field(name=exercise.title(), value=f'Reps: {reps}\nCompletions: {completions}\nFails: {fails}')
             guild = client.get_guild(841828321359822858)
             member = guild.get_member(user)
+            if not member:
+                print('Member not in discord server. Continuing...')
+                continue
             await member.send(embed=embed)
             will_continue = True
 
