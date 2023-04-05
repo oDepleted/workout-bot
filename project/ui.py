@@ -302,6 +302,26 @@ class SetTimezone(discord.ui.View):
         embed = discord.Embed(title="Timezones for Oceania / Pacific", description="Select your timezone from the dropdown box below.\nThis will determine when you recieve reminders!", color=0x9470DC)
         await interaction.response.send_message(embed=embed, view=SelectView(placeholder="Select Timezone", options=[discord.SelectOption(label=timezone) for timezone in timezones], interaction=interaction, min=1, max=1), ephemeral=True)
 
+class AddEntry(discord.ui.Modal, title='Add Entry'):
+    def __init__(self, tracker, **kwargs):
+        self.tracker = tracker
+        super().__init__(**kwargs)
+
+    new_value = discord.ui.TextInput(label='Value', style=discord.TextStyle.short)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        user = interaction.user.id
+        new_value = str(self.new_value)
+
+        with open(f'./database/userdata/{user}.json', 'r') as datafile:
+            data = json.load(datafile)
+
+        today = datetime.datetime.today().strftime("%Y-%m-%d")
+        data['trackers'][self.tracker]['entries'][today] = new_value
+        with open(f'./database/userdata/{user}.json', 'w') as datafile:
+            json.dump(data, datafile, indent=4)
+        await interaction.response.send_message(f'Successfully added entry for tracker `{self.tracker}`.', ephemeral=True)
+
 # Select menus
 class Select(discord.ui.Select):
     def __init__(self, placeholder, options, min, max):
@@ -315,13 +335,54 @@ class Select(discord.ui.Select):
             await interaction.response.send_message(embed=embed, view=ConfigureExercises(self.values[0]), ephemeral=True)
             return
 
+        if self.placeholder == "Select Tracker":
+            await interaction.response.send_modal(AddEntry(tracker=self.values[0]))
+            return
+
         with open(f'./database/userdata/{user}.json', 'r') as datafile:
             data = json.load(datafile)
+
+        if self.placeholder == "Select Tracker To View":
+            tracker = self.values[0]
+            tracker_data = data['trackers'][tracker]
+            description = [tracker_data['description']+'\n']
+
+            if tracker_data['entries']: description.extend([f'{key}: **{value}**' for key, value in reversed(tracker_data['entries'].items())])
+            else: description.append('There are no entries for this tracker!')
+            description_string = '\n'.join(description)
+
+            embed = discord.Embed(title=f'Entries for {tracker}', description=description_string, color=0x9470DC)
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+            return
+
+        if self.placeholder == "Select Trackers To Delete":
+            if self.values:
+                removed_list = []
+                for tracker in self.values:
+                    if str(tracker) in data['trackers']: removed_list.append(str(tracker))
+                formatted_removed_list = ', '.join(removed_list) if removed_list else "None"
+                embed = discord.Embed(title='Confirm Deletion', description=f'You are about to delete the following trackers: `{formatted_removed_list}`!\nThis cannot be undone, press the button below to continue.', color=0xFF0000)
+                await interaction.response.send_message(embed=embed, view=ConfirmButton(method='delete_trackers', values=self.values), ephemeral=True)
+                return
+            await interaction.response.send_message(content='No exercises were selected.', ephemeral=True)
+            return
+
+        if self.placeholder == "Select Exercises To Remove":
+            if self.values:
+                removed_list = []
+                for exercise in self.values:
+                    if str(exercise) in data['exercises']: removed_list.append(str(exercise))
+                formatted_removed_list = ', '.join(removed_list) if removed_list else "None"
+                embed = discord.Embed(title='Confirm Deletion', description=f'You are about to delete the following exercises: `{formatted_removed_list}`!\nThis cannot be undone, press the button below to continue.', color=0xFF0000)
+                await interaction.response.send_message(embed=embed, view=ConfirmButton(method='delete_exercise', values=self.values), ephemeral=True)
+                return
+            await interaction.response.send_message(content='No exercises were selected.', ephemeral=True)
+
         if self.placeholder == "Select Timezone":
             selected_timezone = self.values[0]
             data['options']['time']['timezone'] = selected_timezone
             response = f'Successfully updated your timezone to `{selected_timezone}`!'
-        
+
         elif self.placeholder == "Start Hour":
             start_hour = int(self.values[0])
             data['options']['time']['start_time'] = start_hour
@@ -339,18 +400,6 @@ class Select(discord.ui.Select):
             data['options']['statuses'] = status_list
             formatted_status_list = ', '.join(self.values) if self.values else "None"
             response = f'Successfully updated your statuses to include: `{formatted_status_list}`!'
-
-        elif self.placeholder == "Select Exercises To Remove":
-            if self.values:
-                removed_list = []
-                for exercise in self.values:
-                    if str(exercise) in data['exercises']: removed_list.append(str(exercise))
-                formatted_removed_list = ', '.join(removed_list) if removed_list else "None"
-                embed = discord.Embed(title='Confirm Deletion', description=f'You are about to delete the following exercises: `{formatted_removed_list}`!\nThis cannot be undone, press the button below to continue.', color=0xFF0000)
-                await interaction.response.send_message(embed=embed, view=ConfirmButton(method='delete_exercise', values=self.values), ephemeral=True)
-                return
-            await interaction.response.send_message(content='No exercises were selected.', ephemeral=True)
-            return
 
         with open(f'./database/userdata/{user}.json', 'w') as datafile:
             json.dump(data, datafile, indent=4)
@@ -443,6 +492,18 @@ class ConfirmButton(discord.ui.View):
                 json.dump(data, datafile, indent=4)
             formatted_removed_list = ', '.join(removed_list) if removed_list else "None"
             await interaction.followup.send(f'Successfully deleted the following exercises: `{formatted_removed_list}`.', ephemeral=True)
+        elif self.method == "delete_trackers":
+            with open(f'./database/userdata/{user}.json', 'r') as datafile:
+                data = json.load(datafile)
+            removed_list = []
+            for tracker in self.values:
+                if str(tracker) in data['trackers']:
+                    del data['trackers'][str(tracker)]
+                    removed_list.append(str(tracker))
+            with open(f'./database/userdata/{user}.json', 'w') as datafile:
+                json.dump(data, datafile, indent=4)
+            formatted_removed_list = ', '.join(removed_list) if removed_list else "None"
+            await interaction.followup.send(f'Successfully deleted the following trackers: `{formatted_removed_list}`.', ephemeral=True)
 
 class RestDayButtons(discord.ui.View):
     def __init__(self) -> None:
@@ -505,3 +566,70 @@ class RestDayButtons(discord.ui.View):
 
         embed = discord.Embed(title='Rest Day History', description=description_string, color=0x9470DC)
         await interaction.response.send_message(embed=embed, ephemeral=True)
+
+class CreateTracker(discord.ui.Modal, title='Create Tracker'):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+    tracker_name = discord.ui.TextInput(label='Tracker Name', style=discord.TextStyle.short)
+    tracker_description = discord.ui.TextInput(label='Tracker Description (Optional)', style=discord.TextStyle.short, required=False)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        user = interaction.user.id
+        tracker_name = str(self.tracker_name)
+        tracker_description = str(self.tracker_description)
+
+        with open(f'./database/userdata/{user}.json', 'r') as datafile:
+            data = json.load(datafile)
+
+        data['trackers'][tracker_name] = {
+            "description": tracker_description,
+            "entries": {}
+        }
+
+        with open(f'./database/userdata/{user}.json', 'w') as datafile:
+            json.dump(data, datafile, indent=4)
+        await interaction.response.send_message(f'Successfully created tracker `{tracker_name}`.', ephemeral=True)
+
+
+class TrackerButtons(discord.ui.View):
+    def __init__(self) -> None:
+        super().__init__(timeout=None)
+
+    @discord.ui.button(label = "Add Entry", style = discord.ButtonStyle.blurple, custom_id = "add_entry", row=1)
+    async def add_entry(self, interaction: discord.Interaction, button: discord.ui.Button):
+        user = interaction.user.id
+        with open(f'./database/userdata/{user}.json', 'r') as datafile: tracker_data = json.load(datafile)['trackers']
+        if tracker_data:
+            options = [discord.SelectOption(label=tracker) for tracker in tracker_data]
+            embed = discord.Embed(title="Select Respective Tracker", description="Select the tracker you would like to make a new entry to.", color=0x9470DC)
+            await interaction.response.send_message(embed=embed, view=SelectView(placeholder="Select Tracker", options=options, interaction=interaction, min=1, max=1), ephemeral=True)
+            return
+        await interaction.response.send_message(embed=discord.Embed(title="No Trackers Active", description="In order to add an entry, you must have a tracker to add one to!", color=0xFF0000), ephemeral=True)
+
+    @discord.ui.button(label = "View Entries", style = discord.ButtonStyle.blurple, custom_id = "view_entries", row=1)
+    async def view_entries(self, interaction: discord.Interaction, button: discord.ui.Button):
+        user = interaction.user.id
+        with open(f'./database/userdata/{user}.json', 'r') as datafile: tracker_data = json.load(datafile)['trackers']
+        if tracker_data:
+            options = [discord.SelectOption(label=tracker) for tracker in tracker_data]
+            embed = discord.Embed(title="Select Respective Tracker", description="Select the tracker you would like to view.", color=0x9470DC)
+            await interaction.response.send_message(embed=embed, view=SelectView(placeholder="Select Tracker To View", options=options, interaction=interaction, min=1, max=1), ephemeral=True)
+            return
+        await interaction.response.send_message(embed=discord.Embed(title="No Trackers Active", description="In order to view a tracker, you must have a tracker active!", color=0xFF0000), ephemeral=True)
+
+    @discord.ui.button(label = "Create Tracker", style = discord.ButtonStyle.success, custom_id = "create_tracker", row=2)
+    async def create_tracker(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(CreateTracker())
+
+    @discord.ui.button(label = "Delete Tracker", style = discord.ButtonStyle.danger, custom_id = "delete_tracker", row=2)
+    async def delete_tracker(self, interaction: discord.Interaction, button: discord.ui.Button):
+        user = interaction.user.id
+        with open(f'./database/userdata/{user}.json', 'r') as datafile: tracker_data = json.load(datafile)['trackers']
+        if tracker_data:
+            options = [discord.SelectOption(label=tracker) for tracker in tracker_data]
+            embed = discord.Embed(title="Select Trackers To Delete", description="Select the trackers you would like to delete in the menu below.", color=0x9470DC)
+            await interaction.response.send_message(embed=embed, view=SelectView(placeholder="Select Trackers To Delete", options=options, interaction=interaction, min=0, max=len(options)), ephemeral=True)
+            return
+        await interaction.response.send_message(embed=discord.Embed(title="No Trackers Active", description="In order to remove a tracker, you must have a tracker active!", color=0xFF0000), ephemeral=True)
+

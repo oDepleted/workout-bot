@@ -9,7 +9,7 @@ import discord
 from discord import app_commands
 from discord.ext import tasks
 
-from ui import Configure, CompletionButtons, ConfirmButton, ViewJSON, RestDayButtons
+from ui import Configure, CompletionButtons, ConfirmButton, ViewJSON, RestDayButtons, TrackerButtons
 
 class MyClient(discord.Client):
     def __init__(self):
@@ -150,7 +150,8 @@ async def register(interaction: discord.Interaction):
                     "history": []
                 }
             },
-            "exercises": {}
+            "exercises": {},
+            "trackers": {}
         }
         with open(f'./database/userdata/{user}.json', 'w') as datafile:
             json.dump(data, datafile, indent=4)
@@ -228,6 +229,14 @@ async def rest_day(interaction: discord.Interaction):
         embed = discord.Embed(title="Manage Or View Rest Days", description=f"Current status: `{current_status}`\nYou can set or unset today as a rest day or view your rest day history.", color=0x9470DC)
         await interaction.response.send_message(embed=embed, view=RestDayButtons(), ephemeral=True)
     else: await interaction.response.send_message(embed=discord.Embed(title="You Aren't Registered!", description='In order to manage your rest days, you need to have registered first!', color=0xFF0000), ephemeral=True)
+
+@client.tree.command(name = "tracker", description = "Track your progress")
+async def tracker(interaction: discord.Interaction):
+    user = interaction.user.id
+    if os.path.exists(f'./database/userdata/{user}.json'):
+        embed = discord.Embed(title="Manage Or View Entries", description="Add entries to track your progress over a period of time. Track different stats such as weight, max reps, etc.", color=0x9470DC)
+        await interaction.response.send_message(embed=embed, view=TrackerButtons(), ephemeral=True)
+    else: await interaction.response.send_message(embed=discord.Embed(title="You Aren't Registered!", description='In order to manage your tracker, you need to have registered first!', color=0xFF0000), ephemeral=True)
 
 
 if __name__ == "__main__":
