@@ -9,7 +9,7 @@
 
 
 ## Slash Commands
-| Slash Command | Function |
+| Command | Function |
 | :-------: | -------- |
 | `/configure` |Configure all settings / exercises (main command). |
 | `/register` | Registers your discord account into our program. |
@@ -20,7 +20,7 @@
 
 
 ## DM Commands
-| DM Command | Function |
+| Command | Function |
 | ------- | -------- |
 | `new` | Generates a random new exercise using your configuration. |
 
